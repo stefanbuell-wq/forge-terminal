@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Forge Terminal</title>
+  <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css" />
+  <style>
+    /* ── CSS Variables ─────────────────────────────────────────── */
+    :root {
+      --bg-deep: #070b10;
+      --bg-primary: #0a0e14;
+      --bg-secondary: #0f1923;
+      --bg-tertiary: #151f2c;
+      --bg-hover: #1a2736;
+      --border: #1c2b3a;
+      --border-active: #2d4a5e;
+      --text-primary: #d4dce8;
+      --text-secondary: #7a8da0;
+      --text-muted: #4a5b6e;
+      --accent: #22d3ee;
+      --accent-glow: rgba(34, 211, 238, 0.15);
+      --accent-dim: rgba(34, 211, 238, 0.6);
+      --green: #4ade80;
+      --green-glow: rgba(74, 222, 128, 0.15);
+      --orange: #fb923c;
+      --red: #f87171;
+      --gold: #fbbf24;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace;
+      --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --sidebar-width: 260px;
+      --titlebar-height: 42px;
+      --tab-height: 40px;
+      --statusbar-height: 28px;
+    }
+
+    /* ── Reset ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      overflow: hidden;
+      height: 100vh;
+      user-select: none;
+    }
+
+    /* ── Title Bar ────────────────────────────────────────────── */
+    .titlebar {
+      height: var(--titlebar-height);
+      background: var(--bg-deep);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      -webkit-app-region: drag;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+
+    .titlebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.5px;
+    }
+
+    .titlebar-brand svg {
+      width: 18px;
+      height: 18px;
+      color: var(--accent);
+    }
+
+    .titlebar-controls {
+      display: flex;
+      gap: 2px;
+      -webkit-app-region: no-drag;
+    }
+
+    .titlebar-btn {
+      width: 36px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .titlebar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .titlebar-btn.close:hover { background: var(--red); color: white; }
+    .titlebar-btn svg { width: 14px; height: 14px; }
+
+    /* ── Layout ────────────────────────────────────────────────── */
+    .app-layout {
+      display: flex;
+      height: calc(100vh - var(--titlebar-height));
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-primary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-section {
+      padding: 16px 14px;
+    }
+
+    .sidebar-section:not(:last-child) {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    /* ── AI Provider Toggle ───────────────────────────────────── */
+    .provider-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .provider-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .provider-item:hover { background: var(--bg-hover); }
+    .provider-item.active {
+      background: var(--accent-glow);
+      border-color: var(--border-active);
+    }
+
+    .provider-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .provider-dot.claude { background: var(--accent); box-shadow: 0 0 8px var(--accent-dim); }
+    .provider-dot.openai { background: var(--green); box-shadow: 0 0 8px rgba(74,222,128,0.4); }
+    .provider-dot.ollama { background: var(--orange); box-shadow: 0 0 8px rgba(251,146,60,0.4); }
+    .provider-dot.custom { background: var(--gold); box-shadow: 0 0 8px rgba(251,191,36,0.4); }
+
+    .provider-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .provider-status {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    /* ── Auto-Accept Toggle ───────────────────────────────────── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 8px;
+    }
+
+    .toggle-label {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .toggle-sublabel {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .toggle-switch {
+      width: 38px;
+      height: 20px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.25s;
+      flex-shrink: 0;
+    }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      top: 2px;
+      left: 2px;
+      transition: all 0.25s;
+    }
+    .toggle-switch.active {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .toggle-switch.active::after {
+      background: white;
+      left: 20px;
+    }
+
+    /* ── Danger Level Selector ────────────────────────────────── */
+    .accept-levels {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 8px;
+    }
+
+    .accept-level {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+    .accept-level:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .accept-level.active { color: var(--text-primary); }
+
+    .level-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .level-indicator.safe { background: var(--green); }
+    .level-indicator.moderate { background: var(--orange); }
+    .level-indicator.yolo { background: var(--red); }
+
+    /* ── Quick Actions ────────────────────────────────────────── */
+    .quick-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .quick-action {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-family: var(--font-ui);
+      transition: all 0.15s;
+      text-align: left;
+    }
+    .quick-action:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .quick-action svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+    .sidebar-spacer { flex: 1; }
+
+    .sidebar-footer {
+      padding: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* ── Main Content ─────────────────────────────────────────── */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* ── Tab Bar ──────────────────────────────────────────────── */
+    .tab-bar {
+      height: var(--tab-height);
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      gap: 2px;
+      overflow-x: auto;
+    }
+
+    .tab {
+      height: 30px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .tab.active {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border-color: var(--border);
+    }
+
+    .tab-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .tab-close {
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 3px;
+      opacity: 0;
+      transition: all 0.15s;
+    }
+    .tab:hover .tab-close { opacity: 0.5; }
+    .tab-close:hover { opacity: 1 !important; background: var(--bg-tertiary); }
+
+    .tab-new {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      border: none;
+      background: none;
+      transition: all 0.15s;
+    }
+    .tab-new:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .tab-new svg { width: 14px; height: 14px; }
+
+    /* ── Terminal Area ─────────────────────────────────────────── */
+    .terminal-container {
+      flex: 1;
+      background: var(--bg-primary);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .terminal-instance {
+      position: absolute;
+      inset: 0;
+      padding: 8px 12px;
+      display: none;
+    }
+    .terminal-instance.active { display: block; }
+
+    /* xterm overrides for our theme */
+    .xterm { height: 100%; }
+    .xterm-viewport { overflow-y: auto !important; }
+    .xterm-viewport::-webkit-scrollbar { width: 8px; }
+    .xterm-viewport::-webkit-scrollbar-track { background: transparent; }
+    .xterm-viewport::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+    .xterm-viewport::-webkit-scrollbar-thumb:hover {
+      background: var(--border-active);
+    }
+
+    /* ── Status Bar ───────────────────────────────────────────── */
+    .statusbar {
+      height: var(--statusbar-height);
+      background: var(--bg-deep);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    .statusbar-left, .statusbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .status-dot.online { background: var(--green); box-shadow: 0 0 6px rgba(74,222,128,0.5); }
+    .status-dot.warning { background: var(--orange); }
+    .status-dot.offline { background: var(--red); }
+
+    /* ── Overlay / Welcome ────────────────────────────────────── */
+    .welcome-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-primary);
+      z-index: 10;
+      gap: 20px;
+      transition: opacity 0.3s;
+    }
+    .welcome-overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .welcome-logo {
+      width: 64px;
+      height: 64px;
+      color: var(--accent);
+      opacity: 0.4;
+    }
+
+    .welcome-text {
+      font-size: 14px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .welcome-kbd {
+      display: inline-flex;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* ── Auto-Accept Banner ───────────────────────────────────── */
+    .auto-accept-banner {
+      background: linear-gradient(90deg, rgba(251,146,60,0.08), rgba(248,113,113,0.08));
+      border-bottom: 1px solid rgba(251,146,60,0.2);
+      padding: 6px 14px;
+      font-size: 11px;
+      color: var(--orange);
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .auto-accept-banner.visible { display: flex; }
+    .auto-accept-banner svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    /* ── Animations ────────────────────────────────────────────── */
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 6px var(--accent-dim); }
+      50% { box-shadow: 0 0 14px var(--accent); }
+    }
+
+    .glow-pulse { animation: pulse-glow 2s infinite; }
+  </style>
+</head>
+<body>
+
+<!-- ── Title Bar ──────────────────────────────────────────────── -->
+<div class="titlebar">
+  <div class="titlebar-brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+    FORGE TERMINAL
+  </div>
+  <div class="titlebar-controls">
+    <button class="titlebar-btn" onclick="forgeAPI.minimize()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+    <button class="titlebar-btn" onclick="forgeAPI.maximize()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="1"/></svg>
+    </button>
+    <button class="titlebar-btn close" onclick="forgeAPI.close()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ── App Layout ─────────────────────────────────────────────── -->
+<div class="app-layout">
+
+  <!-- ── Sidebar ────────────────────────────────────────────── -->
+  <div class="sidebar">
+    
+    <div class="sidebar-section">
+      <div class="sidebar-label">AI Provider</div>
+      <div class="provider-list" id="providerList">
+        <div class="provider-item active" data-provider="claude">
+          <span class="provider-dot claude"></span>
+          <span class="provider-name">Claude Code</span>
+          <span class="provider-status">v2.x</span>
+        </div>
+        <div class="provider-item" data-provider="openai">
+          <span class="provider-dot openai"></span>
+          <span class="provider-name">OpenAI Codex</span>
+          <span class="provider-status">soon</span>
+        </div>
+        <div class="provider-item" data-provider="ollama">
+          <span class="provider-dot ollama"></span>
+          <span class="provider-name">Ollama Local</span>
+          <span class="provider-status">soon</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Auto-Accept</div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Aktiviert</div>
+          <div class="toggle-sublabel">Bestätigungen überspringen</div>
+        </div>
+        <div class="toggle-switch" id="autoAcceptToggle"></div>
+      </div>
+      <div class="accept-levels" id="acceptLevels">
+        <div class="accept-level active" data-level="safe">
+          <span class="level-indicator safe"></span>
+          Sicher — Nur Read-Ops
+        </div>
+        <div class="accept-level" data-level="moderate">
+          <span class="level-indicator moderate"></span>
+          Moderat — Read + Write
+        </div>
+        <div class="accept-level" data-level="yolo">
+          <span class="level-indicator yolo"></span>
+          YOLO — Alles akzeptieren
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Quick Actions</div>
+      <div class="quick-actions">
+        <button class="quick-action" id="btnLaunchClaude">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+          Claude Code starten
+        </button>
+        <button class="quick-action" id="btnNewTab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          Neuer Tab
+        </button>
+        <button class="quick-action" id="btnClearTerminal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          Terminal leeren
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+
+    <div class="sidebar-footer">
+      Forge Terminal v0.1.0 — Built with ⚡
+    </div>
+  </div>
+
+  <!-- ── Main Content ───────────────────────────────────────── -->
+  <div class="main-content">
+    
+    <!-- Tab Bar -->
+    <div class="tab-bar" id="tabBar">
+      <button class="tab-new" id="btnTabNew" title="Neuer Tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Auto-Accept Banner -->
+    <div class="auto-accept-banner" id="autoAcceptBanner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span>Auto-Accept aktiv — Claude Code überspringt Bestätigungen</span>
+    </div>
+
+    <!-- Terminal Container -->
+    <div class="terminal-container" id="terminalContainer">
+      <div class="welcome-overlay" id="welcomeOverlay">
+        <svg class="welcome-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </svg>
+        <div class="welcome-text">
+          Willkommen bei <strong>Forge Terminal</strong><br>
+          Drücke <span class="welcome-kbd">Ctrl+T</span> für einen neuen Tab<br>
+          oder klicke <strong>Claude Code starten</strong> in der Sidebar
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar">
+      <div class="statusbar-left">
+        <div class="status-item">
+          <span class="status-dot online" id="statusDot"></span>
+          <span id="statusText">Bereit</span>
+        </div>
+        <div class="status-item" id="statusShell">bash</div>
+      </div>
+      <div class="statusbar-right">
+        <div class="status-item" id="statusProvider">Claude Code</div>
+        <div class="status-item" id="statusAutoAccept">Auto-Accept: Aus</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Scripts ─────────────────────────────────────────────────── -->
+<script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
+<script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+<script src="../node_modules/@xterm/addon-web-links/lib/addon-web-links.js"></script>
+
+<script>
+  // ── State ────────────────────────────────────────────────────
+  const state = {
+    tabs: [],
+    activeTabId: null,
+    autoAccept: false,
+    acceptLevel: 'safe',
+    provider: 'claude',
+    tabCounter: 0,
+  };
+
+  // ── DOM References ───────────────────────────────────────────
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
+  const tabBar = $('#tabBar');
+  const terminalContainer = $('#terminalContainer');
+  const welcomeOverlay = $('#welcomeOverlay');
+
+  // ── Terminal Theme ───────────────────────────────────────────
+  const termTheme = {
+    background: '#0a0e14',
+    foreground: '#d4dce8',
+    cursor: '#22d3ee',
+    cursorAccent: '#0a0e14',
+    selectionBackground: 'rgba(34, 211, 238, 0.2)',
+    selectionForeground: '#d4dce8',
+    black: '#0a0e14',
+    red: '#f87171',
+    green: '#4ade80',
+    yellow: '#fbbf24',
+    blue: '#60a5fa',
+    magenta: '#c084fc',
+    cyan: '#22d3ee',
+    white: '#d4dce8',
+    brightBlack: '#4a5b6e',
+    brightRed: '#fca5a5',
+    brightGreen: '#86efac',
+    brightYellow: '#fde68a',
+    brightBlue: '#93c5fd',
+    brightMagenta: '#d8b4fe',
+    brightCyan: '#67e8f9',
+    brightWhite: '#f1f5f9',
+  };
+
+  // ── Create Tab ───────────────────────────────────────────────
+  async function createTab(launchClaude = false) {
+    const tabId = ++state.tabCounter;
+    
+    // Create terminal instance
+    const term = new Terminal({
+      theme: termTheme,
+      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+      fontSize: 14,
+      lineHeight: 1.4,
+      cursorBlink: true,
+      cursorStyle: 'bar',
+      scrollback: 10000,
+      allowProposedApi: true,
+    });
+
+    const fitAddon = new FitAddon.FitAddon();
+    const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+    term.loadAddon(fitAddon);
+    term.loadAddon(webLinksAddon);
+
+    // Create terminal DOM element
+    const termEl = document.createElement('div');
+    termEl.className = 'terminal-instance';
+    termEl.id = `term-${tabId}`;
+    terminalContainer.appendChild(termEl);
+
+    term.open(termEl);
+    fitAddon.fit();
+
+    // Create PTY
+    const result = await forgeAPI.createTerminal({
+      cols: term.cols,
+      rows: term.rows,
+      autoAccept: state.autoAccept && state.acceptLevel === 'yolo',
+    });
+
+    // Wire up data
+    term.onData((data) => forgeAPI.sendInput(result.id, data));
+    
+    // Store tab info
+    const tab = {
+      id: tabId,
+      ptyId: result.id,
+      term,
+      fitAddon,
+      name: launchClaude ? `⚡ Claude ${tabId}` : `Terminal ${tabId}`,
+    };
+    state.tabs.push(tab);
+
+    // Create tab UI
+    renderTabs();
+    switchToTab(tabId);
+
+    // Hide welcome
+    welcomeOverlay.classList.add('hidden');
+
+    // Resize observer
+    const resizeObserver = new ResizeObserver(() => {
+      fitAddon.fit();
+      forgeAPI.resizeTerminal(result.id, term.cols, term.rows);
+    });
+    resizeObserver.observe(termEl);
+
+    // Launch Claude if requested
+    if (launchClaude) {
+      setTimeout(() => {
+        forgeAPI.launchClaude(result.id, []);
+      }, 500);
+    }
+
+    return tab;
+  }
+
+  // ── Render Tabs ──────────────────────────────────────────────
+  function renderTabs() {
+    // Remove old tabs
+    tabBar.querySelectorAll('.tab').forEach(el => el.remove());
+    const newBtn = $('#btnTabNew');
+
+    state.tabs.forEach((tab) => {
+      const tabEl = document.createElement('div');
+      tabEl.className = `tab ${tab.id === state.activeTabId ? 'active' : ''}`;
+      tabEl.innerHTML = `
+        <span class="tab-dot"></span>
+        <span>${tab.name}</span>
+        <span class="tab-close" data-tab="${tab.id}">✕</span>
+      `;
+      tabEl.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab-close')) {
+          closeTab(tab.id);
+        } else {
+          switchToTab(tab.id);
+        }
+      });
+      tabBar.insertBefore(tabEl, newBtn);
+    });
+  }
+
+  // ── Switch Tab ───────────────────────────────────────────────
+  function switchToTab(tabId) {
+    state.activeTabId = tabId;
+    
+    // Hide all terminals
+    $$('.terminal-instance').forEach(el => el.classList.remove('active'));
+    
+    // Show active
+    const termEl = $(`#term-${tabId}`);
+    if (termEl) termEl.classList.add('active');
+
+    // Focus and fit
+    const tab = state.tabs.find(t => t.id === tabId);
+    if (tab) {
+      setTimeout(() => {
+        tab.fitAddon.fit();
+        tab.term.focus();
+      }, 50);
+    }
+
+    renderTabs();
+  }
+
+  // ── Close Tab ────────────────────────────────────────────────
+  function closeTab(tabId) {
+    const idx = state.tabs.findIndex(t => t.id === tabId);
+    if (idx === -1) return;
+
+    const tab = state.tabs[idx];
+    forgeAPI.killTerminal(tab.ptyId);
+    tab.term.dispose();
+    $(`#term-${tabId}`)?.remove();
+    state.tabs.splice(idx, 1);
+
+    if (state.tabs.length === 0) {
+      state.activeTabId = null;
+      welcomeOverlay.classList.remove('hidden');
+    } else if (state.activeTabId === tabId) {
+      switchToTab(state.tabs[Math.max(0, idx - 1)].id);
+    }
+
+    renderTabs();
+  }
+
+  // ── Handle PTY data ──────────────────────────────────────────
+  forgeAPI.onTerminalData(({ id, data }) => {
+    const tab = state.tabs.find(t => t.ptyId === id);
+    if (tab) tab.term.write(data);
+  });
+
+  forgeAPI.onTerminalExit(({ id }) => {
+    const tab = state.tabs.find(t => t.ptyId === id);
+    if (tab) {
+      tab.term.write('\r\n\x1b[90m[Process exited]\x1b[0m\r\n');
+    }
+  });
+
+  // ── Sidebar: Provider Selection ──────────────────────────────
+  $$('.provider-item').forEach(item => {
+    item.addEventListener('click', () => {
+      $$('.provider-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      state.provider = item.dataset.provider;
+      $('#statusProvider').textContent = item.querySelector('.provider-name').textContent;
+    });
+  });
+
+  // ── Sidebar: Auto-Accept Toggle ──────────────────────────────
+  const autoAcceptToggle = $('#autoAcceptToggle');
+  autoAcceptToggle.addEventListener('click', () => {
+    state.autoAccept = !state.autoAccept;
+    autoAcceptToggle.classList.toggle('active', state.autoAccept);
+    $('#autoAcceptBanner').classList.toggle('visible', state.autoAccept);
+    $('#statusAutoAccept').textContent = state.autoAccept 
+      ? `Auto-Accept: ${state.acceptLevel.toUpperCase()}` 
+      : 'Auto-Accept: Aus';
+  });
+
+  // ── Sidebar: Accept Levels ───────────────────────────────────
+  $$('.accept-level').forEach(level => {
+    level.addEventListener('click', () => {
+      $$('.accept-level').forEach(l => l.classList.remove('active'));
+      level.classList.add('active');
+      state.acceptLevel = level.dataset.level;
+      if (state.autoAccept) {
+        $('#statusAutoAccept').textContent = `Auto-Accept: ${state.acceptLevel.toUpperCase()}`;
+      }
+    });
+  });
+
+  // ── Quick Actions ────────────────────────────────────────────
+  $('#btnLaunchClaude').addEventListener('click', () => createTab(true));
+  $('#btnNewTab').addEventListener('click', () => createTab(false));
+  $('#btnTabNew').addEventListener('click', () => createTab(false));
+  $('#btnClearTerminal').addEventListener('click', () => {
+    const tab = state.tabs.find(t => t.id === state.activeTabId);
+    if (tab) {
+      tab.term.clear();
+      forgeAPI.sendInput(tab.ptyId, 'clear\r');
+    }
+  });
+
+  // ── Keyboard Shortcuts ───────────────────────────────────────
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 't') {
+      e.preventDefault();
+      createTab(false);
+    }
+    if (e.ctrlKey && e.key === 'w') {
+      e.preventDefault();
+      if (state.activeTabId) closeTab(state.activeTabId);
+    }
+    if (e.ctrlKey && e.key === 'l') {
+      e.preventDefault();
+      const tab = state.tabs.find(t => t.id === state.activeTabId);
+      if (tab) tab.term.clear();
+    }
+  });
+</script>
+
+</body>
+</html>
