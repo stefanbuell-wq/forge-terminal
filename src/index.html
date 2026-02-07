@@ -514,30 +514,57 @@
     .autocomplete-ghost {
       position: absolute;
       pointer-events: none;
-      z-index: 5;
+      z-index: 10;
       font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      color: rgba(100, 130, 160, 0.45);
+      color: rgba(34, 211, 238, 0.7);
       white-space: pre;
-      line-height: 1.4;
-      padding: 8px 12px;
+      text-shadow: 0 0 8px rgba(34, 211, 238, 0.3);
+      opacity: 1 !important;
     }
 
     .autocomplete-hint {
       position: fixed;
       bottom: 36px;
       right: 14px;
-      font-size: 10px;
+      font-size: 11px;
       font-family: var(--font-mono);
-      color: var(--text-muted);
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 2px 8px;
+      color: var(--accent);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-active);
+      border-radius: 6px;
+      padding: 4px 12px;
       opacity: 0;
-      transition: opacity 0.2s;
+      transition: opacity 0.25s;
       z-index: 20;
+      box-shadow: 0 2px 12px rgba(34, 211, 238, 0.1);
     }
     .autocomplete-hint.visible { opacity: 1; }
+
+    /* ── Autocomplete Status Indicator ────────────────────────────── */
+    .ac-status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .ac-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: all 0.3s;
+    }
+    .ac-status-dot.active { background: var(--accent); box-shadow: 0 0 6px var(--accent-dim); }
+    .ac-status-dot.requesting {
+      background: var(--gold);
+      box-shadow: 0 0 6px rgba(251, 191, 36, 0.5);
+      animation: ac-pulse 0.8s infinite;
+    }
+
+    @keyframes ac-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
 
     /* ── AI Status Indicator ──────────────────────────────────────── */
     .ai-status {
@@ -944,6 +971,10 @@
         <div class="status-item" id="statusCwd"></div>
         <div class="status-item" id="statusFontSize">14px</div>
         <div class="status-item" id="statusProvider">Claude Code</div>
+        <div class="status-item ac-status-indicator" id="statusAutocomplete">
+          <span class="ac-status-dot" id="acStatusDot"></span>
+          <span id="acStatusText">AC: Aus</span>
+        </div>
         <div class="status-item" id="statusAutoAccept">Auto-Accept: Aus</div>
       </div>
     </div>
@@ -1068,8 +1099,7 @@
     // Wire up data with autocomplete interception
     term.onData((data) => {
       const tab = state.tabs.find(t => t.ptyId === result.id);
-      const providerReady = state.autocompleteProvider === 'ollama' ? state.ollamaAvailable : state.hfAvailable;
-      if (tab && state.autocompleteEnabled && providerReady) {
+      if (tab && state.autocompleteEnabled) {
         const action = handleTerminalInput(tab, data);
         if (action === 'consumed') return; // Tab accepted autocomplete
       }
@@ -1338,13 +1368,50 @@
 
   // ── Autocomplete Engine ──────────────────────────────────────
   const acHint = $('#autocompleteHint');
+  const acStatusDot = $('#acStatusDot');
+  const acStatusText = $('#acStatusText');
+
+  function updateAcStatus(mode) {
+    // mode: 'off' | 'idle' | 'no-provider' | 'requesting' | 'active'
+    acStatusDot.className = 'ac-status-dot';
+    switch (mode) {
+      case 'off':
+        acStatusText.textContent = 'AC: Aus';
+        break;
+      case 'no-provider':
+        acStatusText.textContent = 'AC: Kein Provider';
+        break;
+      case 'idle':
+        acStatusText.textContent = 'AC: Bereit';
+        acStatusDot.classList.add('active');
+        break;
+      case 'requesting':
+        acStatusText.textContent = 'AC: ...';
+        acStatusDot.classList.add('requesting');
+        break;
+      case 'active':
+        acStatusText.textContent = 'AC: Vorschlag';
+        acStatusDot.classList.add('active');
+        break;
+    }
+  }
+
+  function refreshAcStatus() {
+    if (!state.autocompleteEnabled) { updateAcStatus('off'); return; }
+    const providerReady = state.autocompleteProvider === 'ollama' ? state.ollamaAvailable : state.hfAvailable;
+    updateAcStatus(providerReady ? 'idle' : 'no-provider');
+  }
+
+  // Set initial status
+  refreshAcStatus();
 
   function clearAutocomplete() {
     state.autocomplete.suggestion = null;
-    state.autocomplete.inputBuffer = '';
     acHint.classList.remove('visible');
     // Remove ghost overlays
     document.querySelectorAll('.autocomplete-ghost').forEach(el => el.remove());
+    // Reset statusbar
+    refreshAcStatus();
   }
 
   function showGhostText(tab, text) {
@@ -1363,23 +1430,33 @@
     const cellWidth = tab.term._core._renderService.dimensions.css.cell.width;
     const cellHeight = tab.term._core._renderService.dimensions.css.cell.height;
 
+    // Find xterm screen element for precise positioning
+    const xtermScreen = termEl.querySelector('.xterm-screen');
+    const targetParent = xtermScreen || termEl;
+
     const ghost = document.createElement('div');
     ghost.className = 'autocomplete-ghost';
-    ghost.style.left = `${12 + cursorCol * cellWidth}px`;
-    ghost.style.top = `${8 + cursorRow * cellHeight}px`;
+    ghost.style.left = `${cursorCol * cellWidth}px`;
+    ghost.style.top = `${cursorRow * cellHeight}px`;
     ghost.style.fontSize = `${state.fontSize}px`;
+    ghost.style.lineHeight = `${cellHeight}px`;
     ghost.textContent = text;
-    termEl.appendChild(ghost);
+    targetParent.appendChild(ghost);
 
     acHint.classList.add('visible');
     state.autocomplete.suggestion = text;
+    updateAcStatus('active');
   }
 
   async function requestAutocomplete(tab) {
+    if (!state.autocompleteEnabled) return;
     const providerReady = state.autocompleteProvider === 'ollama'
       ? state.ollamaAvailable
       : state.hfAvailable;
-    if (!state.autocompleteEnabled || !providerReady) return;
+    if (!providerReady) {
+      updateAcStatus('no-provider');
+      return;
+    }
     if (state.autocomplete.pending) return;
 
     const buffer = state.autocomplete.inputBuffer.trim();
@@ -1389,8 +1466,9 @@
     }
 
     state.autocomplete.pending = true;
+    updateAcStatus('requesting');
 
-    const prompt = `Complete this shell command. Only output the completion, nothing else. No explanation.\n$ ${buffer}`;
+    const prompt = `Complete this shell command. Only output the remaining characters to complete it, nothing else. No explanation, no repeating what's already typed.\n$ ${buffer}`;
     const completeOptions = {
       maxTokens: 40,
       temperature: 0.1,
@@ -1403,16 +1481,32 @@
         ? await forgeAPI.hfComplete(prompt, completeOptions)
         : await forgeAPI.ollamaComplete(prompt, completeOptions);
 
-      // Only show if we still have the same input
-      if (result && state.autocomplete.inputBuffer.trim() === buffer) {
-        const cleaned = result.replace(/^\s+/, '');
+      const currentBuffer = state.autocomplete.inputBuffer.trim();
+      if (result && currentBuffer.startsWith(buffer)) {
+        let cleaned = result.replace(/^\s+/, '');
+
+        // If the model repeated the input, strip it
+        if (cleaned.toLowerCase().startsWith(buffer.toLowerCase())) {
+          cleaned = cleaned.slice(buffer.length);
+        }
+        // Also strip any extra chars the user typed since the request
+        const extraTyped = currentBuffer.slice(buffer.length);
+        if (extraTyped && cleaned.startsWith(extraTyped)) {
+          cleaned = cleaned.slice(extraTyped.length);
+        }
+
+        cleaned = cleaned.replace(/^\s+/, '');
         if (cleaned.length > 0) {
           showGhostText(tab, cleaned);
         }
       }
-    } catch { /* silent */ }
+    } catch (err) { console.error('[AC] request error:', err); }
 
     state.autocomplete.pending = false;
+    // If no suggestion was shown, go back to idle
+    if (!state.autocomplete.suggestion && state.autocompleteEnabled) {
+      updateAcStatus('idle');
+    }
   }
 
   function handleTerminalInput(tab, data) {
@@ -1464,7 +1558,10 @@
     state.autocompleteEnabled = !state.autocompleteEnabled;
     autocompleteToggle.classList.toggle('active', state.autocompleteEnabled);
     localStorage.setItem('forge-autocomplete', JSON.stringify(state.autocompleteEnabled));
-    if (!state.autocompleteEnabled) clearAutocomplete();
+    if (!state.autocompleteEnabled) {
+      clearAutocomplete();
+    }
+    refreshAcStatus();
   });
 
   // ── Autocomplete Provider Selection ────────────────────────
@@ -1483,6 +1580,7 @@
       localStorage.setItem('forge-ac-provider', state.autocompleteProvider);
       updateAcProviderUI();
       clearAutocomplete();
+      refreshAcStatus();
     });
   });
 
@@ -1502,6 +1600,7 @@
     } catch {
       state.ollamaAvailable = false;
     }
+    refreshAcStatus();
   }
 
   // ── Hugging Face Health Check ──────────────────────────────
@@ -1537,6 +1636,7 @@
     } catch {
       state.hfAvailable = false;
     }
+    refreshAcStatus();
   }
 
   // ── HF API Key Input ──────────────────────────────────────
@@ -1548,7 +1648,7 @@
   if (savedHfKey) {
     hfKeyInput.value = savedHfKey;
     // Send key to main process on startup
-    forgeAPI.hfSetApiKey(savedHfKey).then(health => updateHfStatus(health));
+    forgeAPI.hfSetApiKey(savedHfKey).then(health => { updateHfStatus(health); refreshAcStatus(); });
   }
 
   async function submitHfKey() {
