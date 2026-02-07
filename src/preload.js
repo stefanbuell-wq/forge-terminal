@@ -16,6 +16,23 @@ contextBridge.exposeInMainWorld('forgeAPI', {
   // Claude Code
   launchClaude: (id, args) => ipcRenderer.invoke('claude:launch', { id, args }),
 
+  // Dialogs
+  openFolderDialog: (defaultPath) => ipcRenderer.invoke('dialog:openFolder', defaultPath),
+
+  // Ollama AI
+  ollamaHealth: () => ipcRenderer.invoke('ollama:health'),
+  ollamaStatus: () => ipcRenderer.invoke('ollama:status'),
+  ollamaSetModel: (model) => ipcRenderer.invoke('ollama:setModel', model),
+  ollamaComplete: (prompt, options) => ipcRenderer.invoke('ollama:complete', { prompt, options }),
+  ollamaChat: (messages, options) => ipcRenderer.invoke('ollama:chat', { messages, options }),
+
+  // Hugging Face AI
+  hfHealth: () => ipcRenderer.invoke('huggingface:health'),
+  hfStatus: () => ipcRenderer.invoke('huggingface:status'),
+  hfSetModel: (model) => ipcRenderer.invoke('huggingface:setModel', model),
+  hfComplete: (prompt, options) => ipcRenderer.invoke('huggingface:complete', { prompt, options }),
+  hfSetApiKey: (key) => ipcRenderer.invoke('huggingface:setApiKey', key),
+
   // Window controls
   minimize: () => ipcRenderer.send('window:minimize'),
   maximize: () => ipcRenderer.send('window:maximize'),

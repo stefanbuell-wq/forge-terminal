@@ -1,6 +1,9 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const os = require('os');
+
+const ollama = require('./ollama-service');
+const huggingface = require('./huggingface-service');
 
 let mainWindow;
 
@@ -66,11 +69,15 @@ ipcMain.handle('terminal:create', (event, options = {}) => {
   });
 
   ptyProcess.onData((data) => {
-    mainWindow?.webContents.send('terminal:data', { id, data });
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('terminal:data', { id, data });
+    }
   });
 
   ptyProcess.onExit(({ exitCode }) => {
-    mainWindow?.webContents.send('terminal:exit', { id, exitCode });
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('terminal:exit', { id, exitCode });
+    }
     shells.delete(id);
   });
 
@@ -110,6 +117,33 @@ ipcMain.handle('claude:launch', (event, { id, args = [] }) => {
   }
 });
 
+// ── Folder Dialog ────────────────────────────────────────────────
+ipcMain.handle('dialog:openFolder', async (event, defaultPath) => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    defaultPath: defaultPath || os.homedir(),
+    properties: ['openDirectory'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+// ── Ollama IPC ───────────────────────────────────────────────────
+ipcMain.handle('ollama:health', () => ollama.checkHealth());
+ipcMain.handle('ollama:status', () => ollama.getStatus());
+ipcMain.handle('ollama:setModel', (event, model) => ollama.setModel(model));
+ipcMain.handle('ollama:complete', (event, { prompt, options }) => ollama.complete(prompt, options));
+ipcMain.handle('ollama:chat', (event, { messages, options }) => ollama.chat(messages, options));
+
+// ── Hugging Face IPC ──────────────────────────────────────────
+ipcMain.handle('huggingface:health', () => huggingface.checkHealth());
+ipcMain.handle('huggingface:status', () => huggingface.getStatus());
+ipcMain.handle('huggingface:setModel', (event, model) => huggingface.setModel(model));
+ipcMain.handle('huggingface:complete', (event, { prompt, options }) => huggingface.complete(prompt, options));
+ipcMain.handle('huggingface:setApiKey', (event, key) => {
+  huggingface.setApiKey(key);
+  return huggingface.checkHealth();
+});
+
 // ── Window controls (for frameless on Linux) ────────────────────
 ipcMain.on('window:minimize', () => mainWindow?.minimize());
 ipcMain.on('window:maximize', () => {
@@ -122,7 +156,24 @@ ipcMain.on('window:maximize', () => {
 ipcMain.on('window:close', () => mainWindow?.close());
 
 // ── App Lifecycle ───────────────────────────────────────────────
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  createWindow();
+  // Check Ollama availability on startup
+  const ollamaHealth = await ollama.checkHealth();
+  if (ollamaHealth.available) {
+    console.log(`Ollama connected: ${ollamaHealth.models.length} model(s) available`);
+  } else {
+    console.log('Ollama not available');
+  }
+
+  // Check Hugging Face availability on startup
+  const hfHealth = await huggingface.checkHealth();
+  if (hfHealth.available) {
+    console.log(`Hugging Face connected: model ${hfHealth.model}`);
+  } else {
+    console.log('Hugging Face not available');
+  }
+});
 
 app.on('window-all-closed', () => {
   // Kill all shells

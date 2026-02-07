@@ -6,6 +6,8 @@
   <title>Forge Terminal</title>
   <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css" />
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
     /* ── CSS Variables ─────────────────────────────────────────── */
     :root {
       --bg-deep: #070b10;
@@ -37,8 +39,6 @@
     /* ── Reset ─────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-
     body {
       font-family: var(--font-ui);
       background: var(--bg-deep);
@@ -118,6 +118,7 @@
 
     .sidebar-section {
       padding: 16px 14px;
+      flex-shrink: 0;
     }
 
     .sidebar-section:not(:last-child) {
@@ -287,7 +288,7 @@
     .quick-action:hover { background: var(--bg-hover); color: var(--text-primary); }
     .quick-action svg { width: 16px; height: 16px; flex-shrink: 0; }
 
-    .sidebar-spacer { flex: 1; }
+    .sidebar-spacer { flex: 1; flex-shrink: 0; }
 
     .sidebar-footer {
       padding: 14px;
@@ -295,6 +296,7 @@
       font-size: 11px;
       color: var(--text-muted);
       text-align: center;
+      flex-shrink: 0;
     }
 
     /* ── Main Content ─────────────────────────────────────────── */
@@ -422,6 +424,21 @@
       display: flex;
       align-items: center;
       gap: 14px;
+      min-width: 0;
+    }
+
+    .statusbar-right {
+      overflow: hidden;
+    }
+
+    .statusbar-right .status-item {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #statusCwd {
+      max-width: 250px;
     }
 
     .status-item {
@@ -493,6 +510,122 @@
     .auto-accept-banner.visible { display: flex; }
     .auto-accept-banner svg { width: 14px; height: 14px; flex-shrink: 0; }
 
+    /* ── Autocomplete Ghost Text ─────────────────────────────────── */
+    .autocomplete-ghost {
+      position: absolute;
+      pointer-events: none;
+      z-index: 5;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      color: rgba(100, 130, 160, 0.45);
+      white-space: pre;
+      line-height: 1.4;
+      padding: 8px 12px;
+    }
+
+    .autocomplete-hint {
+      position: fixed;
+      bottom: 36px;
+      right: 14px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 8px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 20;
+    }
+    .autocomplete-hint.visible { opacity: 1; }
+
+    /* ── AI Status Indicator ──────────────────────────────────────── */
+    .ai-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* ── Autocomplete Provider Selector ────────────────────────────── */
+    .ac-provider-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    .ac-provider-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .ac-provider-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .ac-provider-item.active {
+      background: var(--accent-glow);
+      border-color: var(--border-active);
+      color: var(--text-primary);
+    }
+
+    .ac-provider-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .ac-provider-dot.ollama { background: var(--orange); box-shadow: 0 0 6px rgba(251,146,60,0.4); }
+    .ac-provider-dot.huggingface { background: #fbbf24; box-shadow: 0 0 6px rgba(251,191,36,0.4); }
+
+    .ac-provider-status {
+      margin-left: auto;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .hf-key-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .hf-key-input {
+      flex: 1;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .hf-key-input:focus { border-color: var(--border-active); }
+    .hf-key-input::placeholder { color: var(--text-muted); }
+
+    .hf-key-btn {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .hf-key-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-active); }
+
     /* ── Animations ────────────────────────────────────────────── */
     @keyframes pulse-glow {
       0%, 100% { box-shadow: 0 0 6px var(--accent-dim); }
@@ -500,6 +633,43 @@
     }
 
     .glow-pulse { animation: pulse-glow 2s infinite; }
+
+    /* ── Font Size Controls ────────────────────────────────────── */
+    .font-size-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+    }
+
+    .font-size-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .font-size-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--border-active);
+    }
+
+    .font-size-display {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      min-width: 36px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -604,10 +774,46 @@
       </div>
     </div>
 
+    <div class="sidebar-section">
+      <div class="sidebar-label">Einstellungen</div>
+      <div class="font-size-controls">
+        <button class="font-size-btn" id="btnFontMinus" title="Schrift verkleinern">−</button>
+        <span class="font-size-display" id="fontSizeDisplay">14px</span>
+        <button class="font-size-btn" id="btnFontPlus" title="Schrift vergrößern">+</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">KI Autocomplete</div>
+      <div class="ac-provider-list" id="acProviderList">
+        <div class="ac-provider-item" data-ac-provider="ollama">
+          <span class="ac-provider-dot ollama"></span>
+          <span>Ollama (Lokal)</span>
+          <span class="ac-provider-status" id="ollamaAcStatus">Offline</span>
+        </div>
+        <div class="ac-provider-item active" data-ac-provider="huggingface">
+          <span class="ac-provider-dot huggingface"></span>
+          <span>Hugging Face</span>
+          <span class="ac-provider-status" id="hfAcStatus">Kein Key</span>
+        </div>
+      </div>
+      <div class="hf-key-row" id="hfKeyRow">
+        <input type="password" class="hf-key-input" id="hfKeyInput" placeholder="hf_... API Token" />
+        <button class="hf-key-btn" id="hfKeyBtn">OK</button>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Autocomplete</div>
+          <div class="toggle-sublabel">KI-Vorschläge im Terminal</div>
+        </div>
+        <div class="toggle-switch" id="autocompleteToggle"></div>
+      </div>
+    </div>
+
     <div class="sidebar-spacer"></div>
 
     <div class="sidebar-footer">
-      Forge Terminal v0.1.0 — Built with ⚡
+      Forge Terminal v2.0.0 — Built with ⚡
     </div>
   </div>
 
@@ -647,6 +853,9 @@
       </div>
     </div>
 
+    <!-- Autocomplete Hint -->
+    <div class="autocomplete-hint" id="autocompleteHint">Tab = annehmen · Esc = verwerfen</div>
+
     <!-- Status Bar -->
     <div class="statusbar">
       <div class="statusbar-left">
@@ -657,6 +866,8 @@
         <div class="status-item" id="statusShell">bash</div>
       </div>
       <div class="statusbar-right">
+        <div class="status-item" id="statusCwd"></div>
+        <div class="status-item" id="statusFontSize">14px</div>
         <div class="status-item" id="statusProvider">Claude Code</div>
         <div class="status-item" id="statusAutoAccept">Auto-Accept: Aus</div>
       </div>
@@ -679,6 +890,17 @@
     acceptLevel: 'safe',
     provider: 'claude',
     tabCounter: 0,
+    fontSize: parseInt(localStorage.getItem('forge-fontSize')) || 14,
+    ollamaAvailable: false,
+    hfAvailable: false,
+    autocompleteProvider: localStorage.getItem('forge-ac-provider') || 'huggingface',
+    autocompleteEnabled: JSON.parse(localStorage.getItem('forge-autocomplete') || 'false'),
+    autocomplete: {
+      pending: false,
+      suggestion: null,
+      inputBuffer: '',
+      debounceTimer: null,
+    },
   };
 
   // ── DOM References ───────────────────────────────────────────
@@ -715,19 +937,27 @@
   };
 
   // ── Create Tab ───────────────────────────────────────────────
-  async function createTab(launchClaude = false) {
+  async function createTab(launchClaude = false, cwd = null) {
     const tabId = ++state.tabCounter;
-    
+
     // Create terminal instance
     const term = new Terminal({
       theme: termTheme,
       fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-      fontSize: 14,
+      fontSize: state.fontSize,
       lineHeight: 1.4,
       cursorBlink: true,
       cursorStyle: 'bar',
       scrollback: 10000,
       allowProposedApi: true,
+    });
+
+    // Allow Ctrl+Plus/Minus to pass through to our handler
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=')) {
+        return false; // Let the DOM handle it
+      }
+      return true;
     });
 
     const fitAddon = new FitAddon.FitAddon();
@@ -745,22 +975,45 @@
     fitAddon.fit();
 
     // Create PTY
-    const result = await forgeAPI.createTerminal({
+    const ptyOptions = {
       cols: term.cols,
       rows: term.rows,
       autoAccept: state.autoAccept && state.acceptLevel === 'yolo',
+    };
+    if (cwd) ptyOptions.cwd = cwd;
+    const result = await forgeAPI.createTerminal(ptyOptions);
+
+    // Wire up data with autocomplete interception
+    term.onData((data) => {
+      const tab = state.tabs.find(t => t.ptyId === result.id);
+      const providerReady = state.autocompleteProvider === 'ollama' ? state.ollamaAvailable : state.hfAvailable;
+      if (tab && state.autocompleteEnabled && providerReady) {
+        const action = handleTerminalInput(tab, data);
+        if (action === 'consumed') return; // Tab accepted autocomplete
+      }
+      forgeAPI.sendInput(result.id, data);
     });
 
-    // Wire up data
-    term.onData((data) => forgeAPI.sendInput(result.id, data));
-    
+    // Build tab name
+    let tabName;
+    if (launchClaude && cwd) {
+      const folderName = cwd.split(/[/\\]/).pop() || cwd;
+      tabName = `⚡ Claude — ${folderName}`;
+    } else if (launchClaude) {
+      tabName = `⚡ Claude ${tabId}`;
+    } else {
+      tabName = `Terminal ${tabId}`;
+    }
+
     // Store tab info
     const tab = {
       id: tabId,
       ptyId: result.id,
       term,
       fitAddon,
-      name: launchClaude ? `⚡ Claude ${tabId}` : `Terminal ${tabId}`,
+      name: tabName,
+      cwd: cwd || result.cwd,
+      shell: result.shell,
     };
     state.tabs.push(tab);
 
@@ -816,10 +1069,10 @@
   // ── Switch Tab ───────────────────────────────────────────────
   function switchToTab(tabId) {
     state.activeTabId = tabId;
-    
+
     // Hide all terminals
     $$('.terminal-instance').forEach(el => el.classList.remove('active'));
-    
+
     // Show active
     const termEl = $(`#term-${tabId}`);
     if (termEl) termEl.classList.add('active');
@@ -831,6 +1084,17 @@
         tab.fitAddon.fit();
         tab.term.focus();
       }, 50);
+
+      // Update statusbar CWD (show last 2 path segments)
+      if (tab.cwd) {
+        const sep = tab.cwd.includes('\\') ? '\\' : '/';
+        const parts = tab.cwd.split(/[/\\]/).filter(Boolean);
+        const short = parts.length > 2 ? '...' + sep + parts.slice(-2).join(sep) : tab.cwd;
+        $('#statusCwd').textContent = short;
+      } else {
+        $('#statusCwd').textContent = '';
+      }
+      $('#statusShell').textContent = tab.shell || 'bash';
     }
 
     renderTabs();
@@ -903,8 +1167,33 @@
     });
   });
 
+  // ── Font Size Controls ───────────────────────────────────────
+  function changeFontSize(delta) {
+    state.fontSize = Math.max(8, Math.min(28, state.fontSize + delta));
+    localStorage.setItem('forge-fontSize', state.fontSize);
+    $('#fontSizeDisplay').textContent = `${state.fontSize}px`;
+    $('#statusFontSize').textContent = `${state.fontSize}px`;
+    // Update all open terminals
+    state.tabs.forEach((tab) => {
+      tab.term.options.fontSize = state.fontSize;
+      tab.fitAddon.fit();
+      forgeAPI.resizeTerminal(tab.ptyId, tab.term.cols, tab.term.rows);
+    });
+  }
+
+  // Initialize font size display
+  $('#fontSizeDisplay').textContent = `${state.fontSize}px`;
+  $('#statusFontSize').textContent = `${state.fontSize}px`;
+
+  $('#btnFontMinus').addEventListener('click', () => changeFontSize(-1));
+  $('#btnFontPlus').addEventListener('click', () => changeFontSize(1));
+
   // ── Quick Actions ────────────────────────────────────────────
-  $('#btnLaunchClaude').addEventListener('click', () => createTab(true));
+  $('#btnLaunchClaude').addEventListener('click', async () => {
+    const cwd = await forgeAPI.openFolderDialog();
+    if (!cwd) return; // User cancelled
+    createTab(true, cwd);
+  });
   $('#btnNewTab').addEventListener('click', () => createTab(false));
   $('#btnTabNew').addEventListener('click', () => createTab(false));
   $('#btnClearTerminal').addEventListener('click', () => {
@@ -914,6 +1203,243 @@
       forgeAPI.sendInput(tab.ptyId, 'clear\r');
     }
   });
+
+  // ── Autocomplete Engine ──────────────────────────────────────
+  const acHint = $('#autocompleteHint');
+
+  function clearAutocomplete() {
+    state.autocomplete.suggestion = null;
+    state.autocomplete.inputBuffer = '';
+    acHint.classList.remove('visible');
+    // Remove ghost overlays
+    document.querySelectorAll('.autocomplete-ghost').forEach(el => el.remove());
+  }
+
+  function showGhostText(tab, text) {
+    // Remove old ghost
+    document.querySelectorAll('.autocomplete-ghost').forEach(el => el.remove());
+    if (!text) return;
+
+    const termEl = document.querySelector(`#term-${tab.id}`);
+    if (!termEl) return;
+
+    // Get cursor position from xterm
+    const cursorRow = tab.term.buffer.active.cursorY;
+    const cursorCol = tab.term.buffer.active.cursorX;
+
+    // Calculate pixel position
+    const cellWidth = tab.term._core._renderService.dimensions.css.cell.width;
+    const cellHeight = tab.term._core._renderService.dimensions.css.cell.height;
+
+    const ghost = document.createElement('div');
+    ghost.className = 'autocomplete-ghost';
+    ghost.style.left = `${12 + cursorCol * cellWidth}px`;
+    ghost.style.top = `${8 + cursorRow * cellHeight}px`;
+    ghost.style.fontSize = `${state.fontSize}px`;
+    ghost.textContent = text;
+    termEl.appendChild(ghost);
+
+    acHint.classList.add('visible');
+    state.autocomplete.suggestion = text;
+  }
+
+  async function requestAutocomplete(tab) {
+    const providerReady = state.autocompleteProvider === 'ollama'
+      ? state.ollamaAvailable
+      : state.hfAvailable;
+    if (!state.autocompleteEnabled || !providerReady) return;
+    if (state.autocomplete.pending) return;
+
+    const buffer = state.autocomplete.inputBuffer.trim();
+    if (buffer.length < 2) {
+      clearAutocomplete();
+      return;
+    }
+
+    state.autocomplete.pending = true;
+
+    const prompt = `Complete this shell command. Only output the completion, nothing else. No explanation.\n$ ${buffer}`;
+    const completeOptions = {
+      maxTokens: 40,
+      temperature: 0.1,
+      stop: ['\n', '\r', '```', '$'],
+      timeout: state.autocompleteProvider === 'huggingface' ? 4000 : 2000,
+    };
+
+    try {
+      const result = state.autocompleteProvider === 'huggingface'
+        ? await forgeAPI.hfComplete(prompt, completeOptions)
+        : await forgeAPI.ollamaComplete(prompt, completeOptions);
+
+      // Only show if we still have the same input
+      if (result && state.autocomplete.inputBuffer.trim() === buffer) {
+        const cleaned = result.replace(/^\s+/, '');
+        if (cleaned.length > 0) {
+          showGhostText(tab, cleaned);
+        }
+      }
+    } catch { /* silent */ }
+
+    state.autocomplete.pending = false;
+  }
+
+  function handleTerminalInput(tab, data) {
+    // Track input buffer between prompts
+    if (data === '\r' || data === '\n') {
+      // Enter — clear buffer
+      clearAutocomplete();
+      state.autocomplete.inputBuffer = '';
+      return;
+    }
+
+    if (data === '\x7f' || data === '\b') {
+      // Backspace
+      state.autocomplete.inputBuffer = state.autocomplete.inputBuffer.slice(0, -1);
+    } else if (data === '\x1b' || data.startsWith('\x1b[')) {
+      // Escape or arrow keys — dismiss autocomplete
+      clearAutocomplete();
+      return;
+    } else if (data === '\t') {
+      // Tab — accept autocomplete
+      if (state.autocomplete.suggestion) {
+        forgeAPI.sendInput(tab.ptyId, state.autocomplete.suggestion);
+        state.autocomplete.inputBuffer += state.autocomplete.suggestion;
+        clearAutocomplete();
+        return 'consumed'; // don't send tab to PTY
+      }
+    } else if (data.length === 1 && data.charCodeAt(0) >= 32) {
+      // Printable character
+      state.autocomplete.inputBuffer += data;
+    } else {
+      // Control chars — clear
+      clearAutocomplete();
+      return;
+    }
+
+    // Debounced autocomplete request
+    clearTimeout(state.autocomplete.debounceTimer);
+    clearAutocomplete();
+    state.autocomplete.debounceTimer = setTimeout(() => {
+      requestAutocomplete(tab);
+    }, 400);
+  }
+
+  // ── Autocomplete Sidebar Controls ──────────────────────────
+  const autocompleteToggle = $('#autocompleteToggle');
+  if (state.autocompleteEnabled) autocompleteToggle.classList.add('active');
+
+  autocompleteToggle.addEventListener('click', () => {
+    state.autocompleteEnabled = !state.autocompleteEnabled;
+    autocompleteToggle.classList.toggle('active', state.autocompleteEnabled);
+    localStorage.setItem('forge-autocomplete', JSON.stringify(state.autocompleteEnabled));
+    if (!state.autocompleteEnabled) clearAutocomplete();
+  });
+
+  // ── Autocomplete Provider Selection ────────────────────────
+  function updateAcProviderUI() {
+    document.querySelectorAll('.ac-provider-item').forEach(item => {
+      item.classList.toggle('active', item.dataset.acProvider === state.autocompleteProvider);
+    });
+  }
+
+  // Initialize active state from stored preference
+  updateAcProviderUI();
+
+  document.querySelectorAll('.ac-provider-item').forEach(item => {
+    item.addEventListener('click', () => {
+      state.autocompleteProvider = item.dataset.acProvider;
+      localStorage.setItem('forge-ac-provider', state.autocompleteProvider);
+      updateAcProviderUI();
+      clearAutocomplete();
+    });
+  });
+
+  // ── Ollama Health Check ────────────────────────────────────
+  async function checkOllama() {
+    try {
+      const health = await forgeAPI.ollamaHealth();
+      state.ollamaAvailable = health.available;
+      const statusEl = $('#ollamaAcStatus');
+      if (health.available) {
+        statusEl.textContent = `${health.models.length} Modell(e)`;
+        statusEl.style.color = 'var(--green)';
+      } else {
+        statusEl.textContent = 'Offline';
+        statusEl.style.color = 'var(--text-muted)';
+      }
+    } catch {
+      state.ollamaAvailable = false;
+    }
+  }
+
+  // ── Hugging Face Health Check ──────────────────────────────
+  function updateHfStatus(health) {
+    state.hfAvailable = health.available;
+    const statusEl = $('#hfAcStatus');
+    if (health.available) {
+      statusEl.textContent = 'Online';
+      statusEl.style.color = 'var(--green)';
+    } else if (health.noKey) {
+      statusEl.textContent = 'Kein Key';
+      statusEl.style.color = 'var(--text-muted)';
+    } else if (health.unauthorized) {
+      statusEl.textContent = 'Key ungültig';
+      statusEl.style.color = 'var(--red)';
+    } else if (health.rateLimited) {
+      statusEl.textContent = 'Rate-Limit';
+      statusEl.style.color = 'var(--orange)';
+    } else if (health.loading) {
+      const secs = health.estimatedTime ? `~${Math.ceil(health.estimatedTime)}s` : '';
+      statusEl.textContent = `Lädt ${secs}`;
+      statusEl.style.color = 'var(--gold)';
+    } else {
+      statusEl.textContent = 'Offline';
+      statusEl.style.color = 'var(--text-muted)';
+    }
+  }
+
+  async function checkHuggingFace() {
+    try {
+      const health = await forgeAPI.hfHealth();
+      updateHfStatus(health);
+    } catch {
+      state.hfAvailable = false;
+    }
+  }
+
+  // ── HF API Key Input ──────────────────────────────────────
+  const hfKeyInput = $('#hfKeyInput');
+  const hfKeyBtn = $('#hfKeyBtn');
+
+  // Restore saved key
+  const savedHfKey = localStorage.getItem('forge-hf-key') || '';
+  if (savedHfKey) {
+    hfKeyInput.value = savedHfKey;
+    // Send key to main process on startup
+    forgeAPI.hfSetApiKey(savedHfKey).then(health => updateHfStatus(health));
+  }
+
+  async function submitHfKey() {
+    const key = hfKeyInput.value.trim();
+    localStorage.setItem('forge-hf-key', key);
+    const statusEl = $('#hfAcStatus');
+    statusEl.textContent = 'Prüfe...';
+    statusEl.style.color = 'var(--text-muted)';
+    const health = await forgeAPI.hfSetApiKey(key);
+    updateHfStatus(health);
+  }
+
+  hfKeyBtn.addEventListener('click', submitHfKey);
+  hfKeyInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitHfKey();
+  });
+
+  // Run both checks on startup
+  checkOllama();
+  if (!savedHfKey) checkHuggingFace();
+  // Re-check Ollama every 30s, HF every 60s
+  setInterval(checkOllama, 30000);
+  setInterval(checkHuggingFace, 60000);
 
   // ── Keyboard Shortcuts ───────────────────────────────────────
   document.addEventListener('keydown', (e) => {
@@ -929,6 +1455,14 @@
       e.preventDefault();
       const tab = state.tabs.find(t => t.id === state.activeTabId);
       if (tab) tab.term.clear();
+    }
+    if (e.ctrlKey && (e.key === '+' || e.key === '=')) {
+      e.preventDefault();
+      changeFontSize(1);
+    }
+    if (e.ctrlKey && e.key === '-') {
+      e.preventDefault();
+      changeFontSize(-1);
     }
   });
 </script>
