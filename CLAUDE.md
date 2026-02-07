@@ -20,10 +20,11 @@ Forge Terminal ist ein Electron-basierter Terminal-Emulator mit Warp-inspirierte
 ## File Map
 | Datei | Beschreibung |
 |-------|-------------|
-| `src/main.js` | Electron Main Process — Fenster, PTY-Management, IPC-Handler, Ollama-IPC |
+| `src/main.js` | Electron Main Process — Fenster, PTY-Management, IPC-Handler, Ollama/HF/Screenshot-IPC |
 | `src/preload.js` | Context Bridge — exponiert `forgeAPI` an den Renderer |
 | `src/index.html` | Komplettes Frontend — CSS, HTML, JS in einer Datei |
 | `src/ollama-service.js` | Ollama REST API Service Layer — Health-Check, Completion, Chat |
+| `src/huggingface-service.js` | Hugging Face Inference API Client — OpenAI-kompatibel, `/v1/chat/completions` |
 | `package.json` | Dependencies und Scripts |
 | `assets/icon.png` | App-Icon |
 
@@ -35,13 +36,33 @@ Forge Terminal ist ein Electron-basierter Terminal-Emulator mit Warp-inspirierte
 5. Resize-Events werden über `terminal:resize` synchronisiert
 6. `closeTab()` killt den PTY-Prozess und disposed das Terminal
 
-## Ollama Integration
-- `OllamaService` ist ein Singleton im Main Process (`src/ollama-service.js`)
+## AI Autocomplete
+- Zwei Provider: **Ollama** (lokal) und **Hugging Face** (cloud, API Key nötig)
+- Provider-Auswahl in der Sidebar, gespeichert in `localStorage`
+- Debounced (400ms), Ghost-Text-Overlay auf `xterm-screen`, Tab=Accept, Esc=Dismiss
+- Statusbar-Indikator zeigt AC-Status: Aus / Kein Provider / Bereit / ... / Vorschlag
+- Completion-Ergebnisse werden um bereits getippten Prefix bereinigt
+
+### Ollama
+- `OllamaService` Singleton im Main Process (`src/ollama-service.js`)
 - Kommuniziert mit Ollama REST API unter `http://127.0.0.1:11434`
 - IPC-Kanäle: `ollama:health`, `ollama:status`, `ollama:setModel`, `ollama:complete`, `ollama:chat`
-- Renderer greift über `forgeAPI.ollamaComplete()` / `forgeAPI.ollamaChat()` zu
 - Health-Check beim App-Start und alle 30s im Renderer
-- Autocomplete: Debounced (400ms), Ghost-Text-Overlay über dem Terminal, Tab=Accept, Esc=Dismiss
+
+### Hugging Face
+- `HuggingFaceService` Singleton im Main Process (`src/huggingface-service.js`)
+- Endpoint: `https://router.huggingface.co/v1/chat/completions` (OpenAI-kompatibel)
+- Default-Modell: `Qwen/Qwen2.5-Coder-32B-Instruct`
+- Erfordert API Key (kostenloser Read-Token reicht): https://huggingface.co/settings/tokens
+- IPC-Kanäle: `huggingface:health`, `huggingface:status`, `huggingface:setModel`, `huggingface:complete`, `huggingface:setApiKey`
+- Health-Check beim App-Start und alle 60s im Renderer
+- **Bekanntes Issue**: API Key wird nach App-Neustart nicht zuverlässig aus localStorage wiederhergestellt (Backlog)
+
+## Screenshot
+- Capture via `desktopCapturer.getSources()` (Fenster + Screens)
+- Picker-Overlay mit Thumbnails, Klick auf Source → Full-Res Capture
+- Screenshots gespeichert unter `~/forge-screenshots/`
+- Hotkey: Ctrl+Shift+S, IPC: `screenshot:getSources`, `screenshot:capture`
 
 ## Run-Befehle
 ```bash
