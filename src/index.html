@@ -626,6 +626,74 @@
     }
     .hf-key-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-active); }
 
+    /* ── Screenshot Picker Overlay ────────────────────────────────── */
+    .screenshot-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 11, 16, 0.92);
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      overflow-y: auto;
+    }
+    .screenshot-overlay.visible { display: flex; }
+
+    .screenshot-overlay-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .screenshot-overlay-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      width: 100%;
+      max-width: 960px;
+    }
+
+    .screenshot-source {
+      background: var(--bg-secondary);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .screenshot-source:hover {
+      border-color: var(--accent);
+      background: var(--bg-tertiary);
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .screenshot-source img {
+      width: 100%;
+      border-radius: 6px;
+      background: #000;
+    }
+
+    .screenshot-source-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* ── Animations ────────────────────────────────────────────── */
     @keyframes pulse-glow {
       0%, 100% { box-shadow: 0 0 6px var(--accent-dim); }
@@ -771,6 +839,13 @@
           </svg>
           Terminal leeren
         </button>
+        <button class="quick-action" id="btnScreenshot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          Screenshot
+        </button>
       </div>
     </div>
 
@@ -874,6 +949,13 @@
     </div>
 
   </div>
+</div>
+
+<!-- Screenshot Picker Overlay -->
+<div class="screenshot-overlay" id="screenshotOverlay">
+  <div class="screenshot-overlay-title">Screenshot-Ziel waehlen</div>
+  <div class="screenshot-overlay-hint">Klicke auf ein Fenster oder einen Bildschirm — Esc zum Abbrechen</div>
+  <div class="screenshot-grid" id="screenshotGrid"></div>
 </div>
 
 <!-- ── Scripts ─────────────────────────────────────────────────── -->
@@ -1204,6 +1286,56 @@
     }
   });
 
+  // ── Screenshot ────────────────────────────────────────────────
+  const screenshotOverlay = $('#screenshotOverlay');
+  const screenshotGrid = $('#screenshotGrid');
+
+  function closeScreenshotPicker() {
+    screenshotOverlay.classList.remove('visible');
+    screenshotGrid.innerHTML = '';
+  }
+
+  async function openScreenshotPicker() {
+    const statusText = $('#statusText');
+    statusText.textContent = 'Lade Fenster...';
+
+    const sources = await forgeAPI.getScreenshotSources();
+    screenshotGrid.innerHTML = '';
+
+    for (const source of sources) {
+      const card = document.createElement('div');
+      card.className = 'screenshot-source';
+      card.innerHTML = `
+        <img src="${source.thumbnail}" alt="${source.name}" />
+        <div class="screenshot-source-name">${source.name}</div>
+      `;
+      card.addEventListener('click', async () => {
+        closeScreenshotPicker();
+        statusText.textContent = 'Screenshot...';
+        try {
+          const filePath = await forgeAPI.takeScreenshot(source.id);
+          if (filePath) {
+            statusText.textContent = `Screenshot: ${filePath.split(/[/\\]/).pop()}`;
+            setTimeout(() => { statusText.textContent = 'Bereit'; }, 4000);
+          }
+        } catch {
+          statusText.textContent = 'Screenshot fehlgeschlagen';
+          setTimeout(() => { statusText.textContent = 'Bereit'; }, 3000);
+        }
+      });
+      screenshotGrid.appendChild(card);
+    }
+
+    screenshotOverlay.classList.add('visible');
+    statusText.textContent = 'Bereit';
+  }
+
+  screenshotOverlay.addEventListener('click', (e) => {
+    if (e.target === screenshotOverlay) closeScreenshotPicker();
+  });
+
+  $('#btnScreenshot').addEventListener('click', openScreenshotPicker);
+
   // ── Autocomplete Engine ──────────────────────────────────────
   const acHint = $('#autocompleteHint');
 
@@ -1463,6 +1595,14 @@
     if (e.ctrlKey && e.key === '-') {
       e.preventDefault();
       changeFontSize(-1);
+    }
+    if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+      e.preventDefault();
+      openScreenshotPicker();
+    }
+    if (e.key === 'Escape' && screenshotOverlay.classList.contains('visible')) {
+      e.preventDefault();
+      closeScreenshotPicker();
     }
   });
 </script>

@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, desktopCapturer } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const os = require('os');
 
 const ollama = require('./ollama-service');
@@ -142,6 +143,57 @@ ipcMain.handle('huggingface:complete', (event, { prompt, options }) => huggingfa
 ipcMain.handle('huggingface:setApiKey', (event, key) => {
   huggingface.setApiKey(key);
   return huggingface.checkHealth();
+});
+
+// ── Screenshot ────────────────────────────────────────────────────
+const screenshotDir = path.join(os.homedir(), 'forge-screenshots');
+
+function ensureScreenshotDir() {
+  if (!fs.existsSync(screenshotDir)) {
+    fs.mkdirSync(screenshotDir, { recursive: true });
+  }
+}
+
+// Get available capture sources (windows + screens) with thumbnails
+ipcMain.handle('screenshot:getSources', async () => {
+  const sources = await desktopCapturer.getSources({
+    types: ['window', 'screen'],
+    thumbnailSize: { width: 320, height: 180 },
+  });
+  return sources.map(s => ({
+    id: s.id,
+    name: s.name,
+    thumbnail: s.thumbnail.toDataURL(),
+  }));
+});
+
+// Capture a specific source at full resolution and save to file
+ipcMain.handle('screenshot:capture', async (event, sourceId) => {
+  // If no sourceId, capture the Forge window itself
+  if (!sourceId) {
+    if (!mainWindow || mainWindow.isDestroyed()) return null;
+    const image = await mainWindow.webContents.capturePage();
+    ensureScreenshotDir();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filePath = path.join(screenshotDir, `forge-${timestamp}.png`);
+    fs.writeFileSync(filePath, image.toPNG());
+    return filePath;
+  }
+
+  // Capture specific source via desktopCapturer
+  const sources = await desktopCapturer.getSources({
+    types: ['window', 'screen'],
+    thumbnailSize: { width: 3840, height: 2160 },
+  });
+  const source = sources.find(s => s.id === sourceId);
+  if (!source) return null;
+
+  ensureScreenshotDir();
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const safeName = source.name.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
+  const filePath = path.join(screenshotDir, `forge-${safeName}-${timestamp}.png`);
+  fs.writeFileSync(filePath, source.thumbnail.toPNG());
+  return filePath;
 });
 
 // ── Window controls (for frameless on Linux) ────────────────────

@@ -33,6 +33,10 @@ contextBridge.exposeInMainWorld('forgeAPI', {
   hfComplete: (prompt, options) => ipcRenderer.invoke('huggingface:complete', { prompt, options }),
   hfSetApiKey: (key) => ipcRenderer.invoke('huggingface:setApiKey', key),
 
+  // Screenshot
+  getScreenshotSources: () => ipcRenderer.invoke('screenshot:getSources'),
+  takeScreenshot: (sourceId) => ipcRenderer.invoke('screenshot:capture', sourceId),
+
   // Window controls
   minimize: () => ipcRenderer.send('window:minimize'),
   maximize: () => ipcRenderer.send('window:maximize'),
