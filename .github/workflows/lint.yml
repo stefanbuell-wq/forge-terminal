@@ -1,0 +1,13 @@
+name: Lint
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  lint-js:
+    uses: stefanbuell-wq/ci-templates/.github/workflows/lint-js.yml@main
+    with:
+      node-version: "20"
+      lint-command: "npm run lint"
