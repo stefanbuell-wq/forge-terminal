@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, desktopCapturer, Menu, clipboard, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
 const ollama = require('./ollama-service');
 const huggingface = require('./huggingface-service');
+
 
 let mainWindow;
 
@@ -118,6 +119,17 @@ ipcMain.handle('claude:launch', (event, { id, args = [] }) => {
   }
 });
 
+// Launch Gemini in a terminal with auto-accept
+ipcMain.handle('gemini:launch', (event, { id, args = [] }) => {
+  const shell = shells.get(id);
+  if (shell) {
+    const cmd = shell.autoAccept
+      ? `gemini --dangerously-skip-permissions ${args.join(' ')}\r`
+      : `gemini ${args.join(' ')}\r`;
+    shell.pty.write(cmd);
+  }
+});
+
 // ── Folder Dialog ────────────────────────────────────────────────
 ipcMain.handle('dialog:openFolder', async (event, defaultPath) => {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -144,6 +156,48 @@ ipcMain.handle('huggingface:setApiKey', (event, key) => {
   huggingface.setApiKey(key);
   return huggingface.checkHealth();
 });
+
+// ── Context Menu IPC ──────────────────────────────────────────
+ipcMain.on('show-context-menu', (event, selectedText) => {
+  const template = [
+    {
+      label: 'Copy',
+      enabled: !!selectedText,
+      click: () => {
+        if (selectedText) {
+          clipboard.writeText(selectedText);
+        }
+      }
+    },
+    {
+      label: 'Paste',
+      click: () => {
+        const image = clipboard.readImage();
+        const text = clipboard.readText();
+
+        if (!image.isEmpty()) {
+          // Prefer image over text if both are present
+          const base64Image = image.toPNG().toString('base64');
+          mainWindow.webContents.send('paste-image-to-terminal', base64Image);
+        } else if (text) {
+          mainWindow.webContents.send('paste-into-terminal', text);
+        }
+      }
+    }
+  ];
+  const menu = Menu.buildFromTemplate(template);
+  menu.popup(BrowserWindow.fromWebContents(event.sender));
+});
+
+// ── Paste into Terminal IPC ──────────────────────────────────
+ipcMain.on('paste-into-terminal', (event, text) => {
+  // This event is handled in the renderer to send to the correct PTY
+});
+ipcMain.on('paste-image-to-terminal', (event, image) => {
+  // This event is handled in the renderer to send to the correct PTY
+});
+
+
 
 // ── Screenshot ────────────────────────────────────────────────────
 const screenshotDir = path.join(os.homedir(), 'forge-screenshots');
@@ -225,6 +279,8 @@ app.whenReady().then(async () => {
   } else {
     console.log('Hugging Face not available');
   }
+
+
 });
 
 app.on('window-all-closed', () => {

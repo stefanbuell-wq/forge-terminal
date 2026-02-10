@@ -20,11 +20,12 @@ Forge Terminal ist ein Electron-basierter Terminal-Emulator mit Warp-inspirierte
 ## File Map
 | Datei | Beschreibung |
 |-------|-------------|
-| `src/main.js` | Electron Main Process — Fenster, PTY-Management, IPC-Handler, Ollama/HF/Screenshot-IPC |
+| `src/main.js` | Electron Main Process — Fenster, PTY-Management, IPC-Handler, Ollama/HF/Gemini/Screenshot-IPC |
 | `src/preload.js` | Context Bridge — exponiert `forgeAPI` an den Renderer |
 | `src/index.html` | Komplettes Frontend — CSS, HTML, JS in einer Datei |
 | `src/ollama-service.js` | Ollama REST API Service Layer — Health-Check, Completion, Chat |
 | `src/huggingface-service.js` | Hugging Face Inference API Client — OpenAI-kompatibel, `/v1/chat/completions` |
+| `src/gemini-service.js` | Google Gemini API Client — OpenAI-kompatibel, `/v1beta/openai/chat/completions` |
 | `package.json` | Dependencies und Scripts |
 | `assets/icon.png` | App-Icon |
 
@@ -37,7 +38,7 @@ Forge Terminal ist ein Electron-basierter Terminal-Emulator mit Warp-inspirierte
 6. `closeTab()` killt den PTY-Prozess und disposed das Terminal
 
 ## AI Autocomplete
-- Zwei Provider: **Ollama** (lokal) und **Hugging Face** (cloud, API Key nötig)
+- Drei Provider: **Ollama** (lokal), **Hugging Face** (cloud) und **Gemini** (cloud, Google Pro-Account)
 - Provider-Auswahl in der Sidebar, gespeichert in `localStorage`
 - Debounced (400ms), Ghost-Text-Overlay auf `xterm-screen`, Tab=Accept, Esc=Dismiss
 - Statusbar-Indikator zeigt AC-Status: Aus / Kein Provider / Bereit / ... / Vorschlag
@@ -57,6 +58,14 @@ Forge Terminal ist ein Electron-basierter Terminal-Emulator mit Warp-inspirierte
 - IPC-Kanäle: `huggingface:health`, `huggingface:status`, `huggingface:setModel`, `huggingface:complete`, `huggingface:setApiKey`
 - Health-Check beim App-Start und alle 60s im Renderer
 - **Bekanntes Issue**: API Key wird nach App-Neustart nicht zuverlässig aus localStorage wiederhergestellt (Backlog)
+
+### Gemini
+- `GeminiService` Singleton im Main Process (`src/gemini-service.js`)
+- Endpoint: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` (OpenAI-kompatibel)
+- Default-Modell: `gemini-2.0-flash`
+- Erfordert API Key von https://aistudio.google.com/apikey
+- IPC-Kanäle: `gemini:health`, `gemini:status`, `gemini:setModel`, `gemini:complete`, `gemini:setApiKey`
+- Health-Check beim App-Start und alle 60s im Renderer
 
 ## Screenshot
 - Capture via `desktopCapturer.getSources()` (Fenster + Screens)

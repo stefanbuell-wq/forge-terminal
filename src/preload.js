@@ -15,6 +15,17 @@ contextBridge.exposeInMainWorld('forgeAPI', {
 
   // Claude Code
   launchClaude: (id, args) => ipcRenderer.invoke('claude:launch', { id, args }),
+  // Gemini CLI
+  launchGemini: (id, args) => ipcRenderer.invoke('gemini:launch', { id, args }),
+
+  // Context Menu
+  showContextMenu: (selectedText) => ipcRenderer.send('show-context-menu', selectedText),
+  onPasteIntoTerminal: (callback) => {
+    ipcRenderer.on('paste-into-terminal', (event, text) => callback(text));
+  },
+  onPasteImageToTerminal: (callback) => {
+    ipcRenderer.on('paste-image-to-terminal', (event, base64Image) => callback(base64Image));
+  },
 
   // Dialogs
   openFolderDialog: (defaultPath) => ipcRenderer.invoke('dialog:openFolder', defaultPath),
@@ -32,6 +43,8 @@ contextBridge.exposeInMainWorld('forgeAPI', {
   hfSetModel: (model) => ipcRenderer.invoke('huggingface:setModel', model),
   hfComplete: (prompt, options) => ipcRenderer.invoke('huggingface:complete', { prompt, options }),
   hfSetApiKey: (key) => ipcRenderer.invoke('huggingface:setApiKey', key),
+
+
 
   // Screenshot
   getScreenshotSources: () => ipcRenderer.invoke('screenshot:getSources'),

@@ -45,7 +45,6 @@
       color: var(--text-primary);
       overflow: hidden;
       height: 100vh;
-      user-select: none;
     }
 
     /* ── Title Bar ────────────────────────────────────────────── */
@@ -114,6 +113,7 @@
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
+      overflow-y: auto;
     }
 
     .sidebar-section {
@@ -168,6 +168,7 @@
     .provider-dot.openai { background: var(--green); box-shadow: 0 0 8px rgba(74,222,128,0.4); }
     .provider-dot.ollama { background: var(--orange); box-shadow: 0 0 8px rgba(251,146,60,0.4); }
     .provider-dot.custom { background: var(--gold); box-shadow: 0 0 8px rgba(251,191,36,0.4); }
+    .provider-dot.gemini { background: #4285f4; box-shadow: 0 0 8px rgba(66,133,244,0.4); }
 
     .provider-name {
       font-size: 13px;
@@ -613,6 +614,7 @@
     .ac-provider-dot.ollama { background: var(--orange); box-shadow: 0 0 6px rgba(251,146,60,0.4); }
     .ac-provider-dot.huggingface { background: #fbbf24; box-shadow: 0 0 6px rgba(251,191,36,0.4); }
 
+
     .ac-provider-status {
       margin-left: auto;
       font-size: 10px;
@@ -809,6 +811,11 @@
           <span class="provider-name">OpenAI Codex</span>
           <span class="provider-status">soon</span>
         </div>
+        <div class="provider-item" data-provider="gemini">
+          <span class="provider-dot gemini"></span>
+          <span class="provider-name">Gemini Pro</span>
+          <span class="provider-status">CLI</span>
+        </div>
         <div class="provider-item" data-provider="ollama">
           <span class="provider-dot ollama"></span>
           <span class="provider-name">Ollama Local</span>
@@ -850,6 +857,12 @@
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
           </svg>
           Claude Code starten
+        </button>
+        <button class="quick-action" id="btnLaunchGemini">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 3L8 21M14 3L16 21M3 8H21M3 16H21" />
+          </svg>
+          Gemini Pro starten
         </button>
         <button class="quick-action" id="btnNewTab">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -898,11 +911,13 @@
           <span>Hugging Face</span>
           <span class="ac-provider-status" id="hfAcStatus">Kein Key</span>
         </div>
+
       </div>
       <div class="hf-key-row" id="hfKeyRow">
         <input type="password" class="hf-key-input" id="hfKeyInput" placeholder="hf_... API Token" />
         <button class="hf-key-btn" id="hfKeyBtn">OK</button>
       </div>
+
       <div class="toggle-row">
         <div>
           <div class="toggle-label">Autocomplete</div>
@@ -993,6 +1008,8 @@
 <script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
 <script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
 <script src="../node_modules/@xterm/addon-web-links/lib/addon-web-links.js"></script>
+<script src="../node_modules/@xterm/addon-clipboard/lib/addon-clipboard.js"></script>
+<script src="../node_modules/@xterm/addon-image/lib/addon-image.js"></script>
 
 <script>
   // ── State ────────────────────────────────────────────────────
@@ -1006,7 +1023,7 @@
     fontSize: parseInt(localStorage.getItem('forge-fontSize')) || 14,
     ollamaAvailable: false,
     hfAvailable: false,
-    autocompleteProvider: localStorage.getItem('forge-ac-provider') || 'huggingface',
+    autocompleteProvider: localStorage.getItem('forge-ac-provider') || 'ollama',
     autocompleteEnabled: JSON.parse(localStorage.getItem('forge-autocomplete') || 'false'),
     autocomplete: {
       pending: false,
@@ -1050,7 +1067,7 @@
   };
 
   // ── Create Tab ───────────────────────────────────────────────
-  async function createTab(launchClaude = false, cwd = null) {
+  async function createTab(launchProvider = null, cwd = null) {
     const tabId = ++state.tabCounter;
 
     // Create terminal instance
@@ -1063,6 +1080,7 @@
       cursorStyle: 'bar',
       scrollback: 10000,
       allowProposedApi: true,
+      copyOnSelect: true,
     });
 
     // Allow Ctrl+Plus/Minus to pass through to our handler
@@ -1075,8 +1093,15 @@
 
     const fitAddon = new FitAddon.FitAddon();
     const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+    const clipboardAddon = new ClipboardAddon.ClipboardAddon();
+    const imageAddon = new ImageAddon.ImageAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
+    term.loadAddon(clipboardAddon);
+    term.loadAddon(imageAddon);
+
+    // Set rightClickSelectsWord to true for better selection experience
+    term.options.rightClickSelectsWord = true;
 
     // Create terminal DOM element
     const termEl = document.createElement('div');
@@ -1108,11 +1133,12 @@
 
     // Build tab name
     let tabName;
-    if (launchClaude && cwd) {
-      const folderName = cwd.split(/[/\\]/).pop() || cwd;
-      tabName = `⚡ Claude — ${folderName}`;
-    } else if (launchClaude) {
-      tabName = `⚡ Claude ${tabId}`;
+    const folderName = cwd ? (cwd.split(/[/\\]/).pop() || cwd) : null;
+
+    if (launchProvider === 'claude') {
+      tabName = folderName ? `⚡ Claude — ${folderName}` : `⚡ Claude ${tabId}`;
+    } else if (launchProvider === 'gemini') {
+      tabName = folderName ? `✨ Gemini — ${folderName}` : `✨ Gemini ${tabId}`;
     } else {
       tabName = `Terminal ${tabId}`;
     }
@@ -1143,10 +1169,14 @@
     });
     resizeObserver.observe(termEl);
 
-    // Launch Claude if requested
-    if (launchClaude) {
+    // Launch AI if requested
+    if (launchProvider === 'claude') {
       setTimeout(() => {
         forgeAPI.launchClaude(result.id, []);
+      }, 500);
+    } else if (launchProvider === 'gemini') {
+      setTimeout(() => {
+        forgeAPI.launchGemini(result.id, []);
       }, 500);
     }
 
@@ -1246,6 +1276,35 @@
     }
   });
 
+  // Handle paste from context menu
+  forgeAPI.onPasteIntoTerminal((text) => {
+    const tab = state.tabs.find(t => t.id === state.activeTabId);
+    if (tab) {
+      tab.term.write(text);
+      forgeAPI.sendInput(tab.ptyId, text); // Also send to PTY
+    }
+  });
+
+  forgeAPI.onPasteImageToTerminal((base64Image) => {
+    const tab = state.tabs.find(t => t.id === state.activeTabId);
+    if (tab) {
+      // Use iTerm2 inline image protocol
+      const escapeSequence = `\x1b]1337;File=inline=1;preserveAspectRatio=1:${base64Image}\x07`;
+      tab.term.write(escapeSequence);
+      // We do not send the image to the PTY, just display it.
+    }
+  });
+
+  // ── Context Menu ─────────────────────────────────────────────
+  terminalContainer.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const activeTab = state.tabs.find(t => t.id === state.activeTabId);
+    if (activeTab) {
+      const selectedText = activeTab.term.getSelection();
+      forgeAPI.showContextMenu(selectedText);
+    }
+  });
+
   // ── Sidebar: Provider Selection ──────────────────────────────
   $$('.provider-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -1304,10 +1363,15 @@
   $('#btnLaunchClaude').addEventListener('click', async () => {
     const cwd = await forgeAPI.openFolderDialog();
     if (!cwd) return; // User cancelled
-    createTab(true, cwd);
+    createTab('claude', cwd);
   });
-  $('#btnNewTab').addEventListener('click', () => createTab(false));
-  $('#btnTabNew').addEventListener('click', () => createTab(false));
+  $('#btnLaunchGemini').addEventListener('click', async () => {
+    const cwd = await forgeAPI.openFolderDialog();
+    if (!cwd) return; // User cancelled
+    createTab('gemini', cwd);
+  });
+  $('#btnNewTab').addEventListener('click', () => createTab(null));
+  $('#btnTabNew').addEventListener('click', () => createTab(null));
   $('#btnClearTerminal').addEventListener('click', () => {
     const tab = state.tabs.find(t => t.id === state.activeTabId);
     if (tab) {
@@ -1398,7 +1462,8 @@
 
   function refreshAcStatus() {
     if (!state.autocompleteEnabled) { updateAcStatus('off'); return; }
-    const providerReady = state.autocompleteProvider === 'ollama' ? state.ollamaAvailable : state.hfAvailable;
+    const providerReady = state.autocompleteProvider === 'ollama' ? state.ollamaAvailable
+      : state.hfAvailable;
     updateAcStatus(providerReady ? 'idle' : 'no-provider');
   }
 
@@ -1450,8 +1515,7 @@
 
   async function requestAutocomplete(tab) {
     if (!state.autocompleteEnabled) return;
-    const providerReady = state.autocompleteProvider === 'ollama'
-      ? state.ollamaAvailable
+    const providerReady = state.autocompleteProvider === 'ollama' ? state.ollamaAvailable
       : state.hfAvailable;
     if (!providerReady) {
       updateAcStatus('no-provider');
@@ -1473,14 +1537,13 @@
       maxTokens: 40,
       temperature: 0.1,
       stop: ['\n', '\r', '```', '$'],
-      timeout: state.autocompleteProvider === 'huggingface' ? 4000 : 2000,
+      timeout: state.autocompleteProvider === 'ollama' ? 2000 : 4000,
     };
 
     try {
-      const result = state.autocompleteProvider === 'huggingface'
-        ? await forgeAPI.hfComplete(prompt, completeOptions)
-        : await forgeAPI.ollamaComplete(prompt, completeOptions);
-
+              const result = state.autocompleteProvider === 'huggingface'
+                ? await forgeAPI.hfComplete(prompt, completeOptions)
+                : await forgeAPI.ollamaComplete(prompt, completeOptions);
       const currentBuffer = state.autocomplete.inputBuffer.trim();
       if (result && currentBuffer.startsWith(buffer)) {
         let cleaned = result.replace(/^\s+/, '');
@@ -1666,18 +1729,22 @@
     if (e.key === 'Enter') submitHfKey();
   });
 
-  // Run both checks on startup
+  // ── Gemini Health Check ──────────────────────────────────────
+
+
+
+
+
+
+  // Run all checks on startup
   checkOllama();
   if (!savedHfKey) checkHuggingFace();
-  // Re-check Ollama every 30s, HF every 60s
-  setInterval(checkOllama, 30000);
-  setInterval(checkHuggingFace, 60000);
 
   // ── Keyboard Shortcuts ───────────────────────────────────────
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.key === 't') {
       e.preventDefault();
-      createTab(false);
+      createTab(null);
     }
     if (e.ctrlKey && e.key === 'w') {
       e.preventDefault();
